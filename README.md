@@ -124,13 +124,5 @@ Planned features include:
 * Morphological operations
 * Image filtering
 * Noise reduction
-* GUI support
-* Video processing
 
 ---
-
-## 👤 Author
-
-Built with ☕, matrices, and several catastrophic debugging arcs by Ara.
-
-GitHub: [Vuxyn](https://github.com/Vuxyn?utm_source=chatgpt.com)
