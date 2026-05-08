@@ -22,18 +22,22 @@ import matplotlib.pyplot as plt
 #      selective_specification(img, target, mask)
 #                                    ← Spesifikasi berbeda per bagian (soal 5)
 #
-#  [3] GEOMETRI & DIAGONAL
+#  [3] COMPOSITION & BLENDING
+#      merge_image(img1, img2, alpha) ← Blending dua citra (transparansi)
+#      replace_background(fg, bg, ...) ← Ganti background manual (masking)
+#
+#  [4] GEOMETRI & DIAGONAL
 #      diagonal_split(img)           ← Memecah gambar jadi 2 segitiga (diagonal)
 #      diagonal_combine(bawah, atas) ← Menggabungkan kembali 2 segitiga diagonal
 #      resize_manual(img, h, w)      ← Resize manual (nearest neighbor)
 #
-#  [4] ADVANCED ENHANCEMENT
+#  [5] ADVANCED ENHANCEMENT
 #      contrast_stretching(img, low, high)
 #                                    ← Penarikan kontras linear
 #      otsu_threshold(img)           ← Thresholding otomatis berbasis variansi
 #      local_enhancement(img, ...)   ← Statistik histogram lokal (soal sulit)
 #
-#  [5] METRICS & VISUALISASI
+#  [6] METRICS & VISUALISASI
 #      calculate_metrics(orig, proc) ← MSE & PSNR (Kualitas citra)
 #      plot_histogram(img, title)    ← Plot histogram menggunakan Matplotlib
 #      show_comparison(img1, img2)   ← Menampilkan perbandingan gambar
@@ -209,6 +213,78 @@ class HistogramProcessor:
                     hasil[i, j] = img[i, j]
                     
         return hasil
+
+    # -------------------------------------------------------------------------
+    # 3. COMPOSITION & BLENDING
+    # -------------------------------------------------------------------------
+
+    @staticmethod
+    def merge_image(img1, img2, alpha=0.5):
+        """
+        Menggabungkan dua citra dengan teknik blending (transparansi) manual.
+        Rumus: hasil = (img1 * alpha) + (img2 * (1 - alpha))
+        
+        Args:
+            img1: np.array citra pertama (source A)
+            img2: np.array citra kedua (source B), harus seukuran img1.
+            alpha: float (0.0 - 1.0), bobot transparansi citra pertama. 
+                   1.0 = img1 penuh, 0.0 = img2 penuh.
+        Returns:
+            np.array citra hasil blending (uint8)
+        """
+        h, w = img1.shape[:2]
+        hasil = np.zeros_like(img1, dtype=np.float64)
+        is_rgb = len(img1.shape) == 3
+        
+        for i in range(h):
+            for j in range(w):
+                if is_rgb:
+                    for c in range(3):
+                        hasil[i, j, c] = (img1[i, j, c] * alpha) + (img2[i, j, c] * (1 - alpha))
+                else:
+                    hasil[i, j] = (img1[i, j] * alpha) + (img2[i, j] * (1 - alpha))
+                    
+        return np.clip(hasil, 0, 255).astype(np.uint8)
+        # Contoh: res = HistogramProcessor.merge_image(img1, img2, alpha=0.7)
+
+    @staticmethod
+    def replace_background(foreground, background, threshold=240, mode='bright'):
+        """
+        Mengganti background pada citra foreground dengan citra background lain.
+        Biasanya digunakan untuk menghapus background putih atau hitam solid.
+        
+        Args:
+            foreground: np.array citra objek utama
+            background: np.array citra latar belakang baru (harus seukuran foreground)
+            threshold: int (0-255), batas nilai piksel untuk dideteksi sebagai background.
+            mode: string, 'bright' untuk ganti background terang (putih), 
+                  'dark' untuk ganti background gelap (hitam).
+        Returns:
+            np.array citra hasil komposisi (uint8)
+        """
+        h, w = foreground.shape[:2]
+        hasil = np.zeros_like(foreground, dtype=np.uint8)
+        is_rgb = len(foreground.shape) == 3
+        
+        for i in range(h):
+            for j in range(w):
+                # Deteksi piksel background (menggunakan rata-rata channel jika RGB)
+                if is_rgb:
+                    intensity = (int(foreground[i, j, 0]) + int(foreground[i, j, 1]) + int(foreground[i, j, 2])) // 3
+                else:
+                    intensity = foreground[i, j]
+                
+                # Kondisi penggantian
+                is_bg = (mode == 'bright' and intensity >= threshold) or \
+                        (mode == 'dark' and intensity <= threshold)
+                
+                if is_bg:
+                    hasil[i, j] = background[i, j]
+                else:
+                    hasil[i, j] = foreground[i, j]
+                    
+        return hasil
+        # Contoh: res = HistogramProcessor.replace_background(obj, bg, threshold=250, mode='bright')
 
     # -------------------------------------------------------------------------
     # 4. GEOMETRI & DIAGONAL
@@ -433,3 +509,111 @@ if __name__ == "__main__":
     selective = HistogramProcessor.selective_specification(dummy_source, dummy_target, mask)
     
     print("Operasi berhasil dijalankan!")
+
+    [ignoring loop detection]
+# ... (bagian awal file tetap sama)
+
+    @staticmethod
+    def merge_image(img1, img2, alpha=0.5):
+        """
+        Menggabungkan dua citra dengan teknik blending (transparansi) manual.
+        Rumus: hasil = (img1 * alpha) + (img2 * (1 - alpha))
+        
+        PENTING: Ukuran img1 dan img2 harus sama. Jika berbeda, gunakan:
+        >>> h, w = img1.shape[:2]
+        >>> img2 = HistogramProcessor.resize_manual(img2, h, w)
+        
+        Args:
+            img1: np.array citra pertama (source A)
+            img2: np.array citra kedua (source B).
+            alpha: float (0.0 - 1.0), bobot transparansi citra pertama. 
+        Returns:
+            np.array citra hasil blending (uint8)
+        """
+        # ... (logika merge tetap sama)
+
+# ... (bagian tengah file)
+
+# =============================================================================
+#  CONTOH PENGGUNAAN LENGKAP (TUTORIAL IMPLEMENTASI)
+# =============================================================================
+# if __name__ == "__main__":
+#     # 1. Simulasi dua gambar dengan ukuran berbeda
+#     img_asli = np.random.randint(0, 255, (300, 400), dtype=np.uint8) # 300x400
+#     img_logo = np.random.randint(0, 255, (100, 100), dtype=np.uint8) # 100x100 (Beda ukuran!)
+
+#     print(f"Ukuran Asli: {img_asli.shape}")
+#     print(f"Ukuran Logo: {img_logo.shape}")
+
+#     # 2. CARA MENYAMAKAN UKURAN (Resize Logo ke Ukuran Asli)
+#     h, w = img_asli.shape[:2]
+#     logo_resized = HistogramProcessor.resize_manual(img_logo, h, w)
+#     print(f"Ukuran Logo setelah Resize: {logo_resized.shape}")
+
+#     # 3. Lakukan Merging
+#     hasil_merge = HistogramProcessor.merge_image(img_asli, logo_resized, alpha=0.8)
+    
+#     # 4. Contoh Ganti Background
+#     # Misal kita punya foto objek dengan background putih (255)
+#     objek = np.full((100, 100), 255, dtype=np.uint8) # Full Putih
+#     objek[30:70, 30:70] = 50 # Ada kotak abu-abu di tengah
+    
+#     background_pemandangan = np.random.randint(100, 150, (100, 100), dtype=np.uint8)
+    
+#     # Ganti background putih (threshold 240) dengan pemandangan
+#     hasil_komposisi = HistogramProcessor.replace_background(
+#         objek, 
+#         background_pemandangan, 
+#         threshold=240, 
+#         mode='bright'
+#     )
+
+#     print("Implementasi Berhasil!")
+
+# Contoh Taruh Logo di Pojok Kiri Atas (0,0)
+# h_logo, w_logo = 50, 50
+# logo_kecil = hp.resize_manual(img_logo, h_logo, w_logo)
+
+# # Ambil potongan (ROI) dari gambar asli seukuran logo
+# roi = img_asli[0:h_logo, 0:w_logo]
+
+# # Blend hanya di area ROI tersebut
+# blended_roi = hp.merge_image(roi, logo_kecil, alpha=0.5)
+
+# # Masukkan kembali ke gambar asli
+# img_asli[0:h_logo, 0:w_logo] = blended_roi
+
+# [ignoring loop detection]
+# import cv2
+# import numpy as np
+# from histogram_operations import HistogramProcessor as hp
+
+# # 1. Load Gambar
+# # Gunakan gambar asli kamu atau dummy jika tidak ada
+# img_asli = cv2.imread('input.jpg', 0) 
+# if img_asli is None:
+#     img_asli = np.random.randint(50, 150, (256, 256), dtype=np.uint8) # Gambar gelap
+
+# # 2. PLOT HISTOGRAM
+# print("Menampilkan Histogram Awal...")
+# hp.plot_histogram(img_asli, "Histogram Original")
+
+# # 3. HISTOGRAM EQUALIZATION (Pemerataan)
+# # Mengubah gambar yang terlalu gelap/terang menjadi lebih seimbang kontrasnya
+# img_equalized = hp.equalize(img_asli)
+# hp.show_comparison(img_asli, img_equalized, "Sebelum EQ", "Setelah EQ")
+# hp.plot_histogram(img_equalized, "Histogram Setelah Equalization")
+
+# # 4. HISTOGRAM SPECIFICATION (Matching)
+# # Menyamakan distribusi warna img_asli agar mirip dengan target_style
+# target_style = np.random.randint(200, 255, (256, 256), dtype=np.uint8) # Target sangat terang
+# img_matched = hp.histogram_specification(img_asli, target_style)
+
+# hp.show_comparison(img_asli, img_matched, "Original", "Setelah Matching ke Target")
+
+# # 5. HITUNG METRIK KUALITAS (MSE & PSNR)
+# mse, psnr = hp.calculate_metrics(img_asli, img_equalized)
+# print(f"Hasil Perbaikan - MSE: {mse:.2f}, PSNR: {psnr:.2f} dB")
+
+
+
