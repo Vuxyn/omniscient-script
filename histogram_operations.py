@@ -2,9 +2,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 # =============================================================================
-#  HISTOGRAM OPERATIONS CHEATSHEET (MODUL 2) — Class-Based & Manual NumPy
-#  Semua operasi dibuat secara manual menggunakan indexing dan loop.
-#  Boleh menggunakan fungsi MATEMATIKA numpy: zeros, cumsum, argmin, dll.
+#  HISTOGRAM OPERATIONS CHEATSHEET (MODUL 2) — Class-Based & Manual Loops
+#  Semua operasi dibuat secara manual menggunakan nested loops.
+#  Sesuai request: HANYA BOLEH menggunakan np.zeros dan np.round.
 # =============================================================================
 #
 #  DAFTAR FUNGSI (Dalam Class HistogramProcessor):
@@ -16,15 +16,18 @@ import matplotlib.pyplot as plt
 #      normalize_min_max(img)        ← Normalisasi linear 0-255
 #
 #  [2] EQUALIZATION & SPECIFICATION
-#      equalize(img)                 ← Ekualisasi histogram (soal 2)
+#      equalize(img)                 ← Ekualisasi histogram 
 #      histogram_specification(src, target)
-#                                    ← Matching ke target (soal 3 & 5)
+#                                    ← Matching ke target 
 #      selective_specification(img, target, mask)
-#                                    ← Spesifikasi berbeda per bagian (soal 5)
+#                                    ← Spesifikasi berbeda per bagian 
 #
 #  [3] COMPOSITION & BLENDING
 #      merge_image(img1, img2, alpha) ← Blending dua citra (transparansi)
 #      replace_background(fg, bg, ...) ← Ganti background manual (masking)
+#      apply_mask(img, mask)         ← Menerapkan mask (area di luar mask jadi hitam)
+#      create_rectangle_mask(h, w, ...) ← Membuat mask persegi panjang manual
+#      create_circle_mask(h, w, ...)    ← Membuat mask lingkaran manual
 #
 #  [4] GEOMETRI & DIAGONAL
 #      diagonal_split(img)           ← Memecah gambar jadi 2 segitiga (diagonal)
@@ -35,7 +38,7 @@ import matplotlib.pyplot as plt
 #      contrast_stretching(img, low, high)
 #                                    ← Penarikan kontras linear
 #      otsu_threshold(img)           ← Thresholding otomatis berbasis variansi
-#      local_enhancement(img, ...)   ← Statistik histogram lokal (soal sulit)
+#      local_enhancement(img, ...)   ← Statistik histogram lokal 
 #
 #  [6] METRICS & VISUALISASI
 #      calculate_metrics(orig, proc) ← MSE & PSNR (Kualitas citra)
@@ -83,7 +86,15 @@ class HistogramProcessor:
         """
         bins = [i for i in range(256)]
         hist = HistogramProcessor.calculate_histogram(img)
-        hist_norm = hist / (np.sum(hist) + 1e-8)
+        
+        # Manual sum
+        total = 0
+        for val in hist:
+            total += val
+            
+        hist_norm = np.zeros(256, dtype=float)
+        for i in range(256):
+            hist_norm[i] = hist[i] / (total + 1e-8)
         return bins, hist_norm
 
     @staticmethod
@@ -114,18 +125,42 @@ class HistogramProcessor:
     def normalize_min_max(image):
         """
         Normalisasi citra menggunakan Min-Max ke rentang 0-255.
-        
-        Args:
-            image: np.array citra
-        Returns:
-            np.array citra ternormalisasi
         """
-        min_val = np.min(image)
-        max_val = np.max(image)
+        h, w = image.shape[:2]
+        is_rgb = len(image.shape) == 3
+        
+        # Manual min max
+        if is_rgb:
+            min_val = image[0, 0, 0]
+            max_val = image[0, 0, 0]
+            for i in range(h):
+                for j in range(w):
+                    for c in range(3):
+                        if image[i, j, c] < min_val: min_val = image[i, j, c]
+                        if image[i, j, c] > max_val: max_val = image[i, j, c]
+        else:
+            min_val = image[0, 0]
+            max_val = image[0, 0]
+            for i in range(h):
+                for j in range(w):
+                    if image[i, j] < min_val: min_val = image[i, j]
+                    if image[i, j] > max_val: max_val = image[i, j]
+
         if max_val == min_val:
-            return np.zeros_like(image, dtype=np.uint8) 
-        norm = (image - min_val) / (max_val - min_val)
-        return (norm * 255).astype(np.uint8)
+            return np.zeros(image.shape, dtype=np.uint8)
+            
+        hasil = np.zeros(image.shape, dtype=np.uint8)
+        diff = max_val - min_val
+        for i in range(h):
+            for j in range(w):
+                if is_rgb:
+                    for c in range(3):
+                        norm = (image[i, j, c] - min_val) / diff
+                        hasil[i, j, c] = int(np.round(norm * 255))
+                else:
+                    norm = (image[i, j] - min_val) / diff
+                    hasil[i, j] = int(np.round(norm * 255))
+        return hasil
 
     # -------------------------------------------------------------------------
     # 2. EQUALIZATION
@@ -135,26 +170,27 @@ class HistogramProcessor:
     def equalize(img):
         """
         Ekualisasi Histogram (Manual).
-        Menggunakan rumus: round(cdf(i) * 255 / (H*W))
         """
         h, w = img.shape[:2]
-        
-        # 1. Hitung Histogram
         hist = HistogramProcessor.calculate_histogram(img)
         
-        # 2. Hitung CDF
-        cdf = np.zeros(256, dtype=int)
+        # Manual CDF
+        cdf = np.zeros(256, dtype=float)
+        running_sum = 0
         for i in range(256):
-            cdf[i] = np.sum(hist[0:i+1])
+            running_sum += hist[i]
+            cdf[i] = running_sum
         
-        # 3. Transformasi Nilai (LUT)
-        result_lut = np.round((cdf * 255) / (h * w)).astype(np.uint8)
+        # Manual LUT with np.round
+        result_lut = np.zeros(256, dtype=np.uint8)
+        total_pixels = h * w
+        for i in range(256):
+            result_lut[i] = int(np.round((cdf[i] * 255) / total_pixels))
         
-        # 4. Terapkan LUT
-        hasil = np.zeros_like(img, dtype=np.uint8)
+        hasil = np.zeros(img.shape, dtype=np.uint8)
         for i in range(h):
             for j in range(w):
-                hasil[i, j] = result_lut[img[i, j]]
+                hasil[i, j] = result_lut[int(img[i, j])]
                 
         return hasil
 
@@ -162,31 +198,57 @@ class HistogramProcessor:
     def histogram_specification(source_img, target_img):
         """
         Histogram Specification / Matching (Manual).
-        Mencari mapping nilai source yang paling dekat dengan target.
         """
         h, w = source_img.shape[:2]
         
         # Step A: CDF Source (Scaled 0-255)
         hist_s = HistogramProcessor.calculate_histogram(source_img)
-        cdf_s = np.cumsum(hist_s)
-        cdf_s = np.round(cdf_s * 255 / cdf_s[-1]).astype(np.uint8)
+        cdf_s = np.zeros(256, dtype=float)
+        run_s = 0
+        for i in range(256):
+            run_s += hist_s[i]
+            cdf_s[i] = run_s
+        
+        last_cdf_s = cdf_s[255] if cdf_s[255] > 0 else 1
+        lut_s = np.zeros(256, dtype=np.uint8)
+        for i in range(256):
+            lut_s[i] = int(np.round(cdf_s[i] * 255 / last_cdf_s))
         
         # Step B: CDF Target (Scaled 0-255)
         hist_t = HistogramProcessor.calculate_histogram(target_img)
-        cdf_t = np.cumsum(hist_t)
-        cdf_t = np.round(cdf_t * 255 / cdf_t[-1]).astype(np.uint8)
+        cdf_t = np.zeros(256, dtype=float)
+        run_t = 0
+        for i in range(256):
+            run_t += hist_t[i]
+            cdf_t[i] = run_t
+            
+        last_cdf_t = cdf_t[255] if cdf_t[255] > 0 else 1
+        lut_t = np.zeros(256, dtype=np.uint8)
+        for i in range(256):
+            lut_t[i] = int(np.round(cdf_t[i] * 255 / last_cdf_t))
         
         # Step C: Buat Mapping LUT (Nearest Match)
         mapping = np.zeros(256, dtype=np.uint8)
         for s_val in range(256):
-            diff = np.abs(cdf_s[s_val] - cdf_t)
-            mapping[s_val] = np.argmin(diff)
+            # Manual argmin with manual abs
+            min_diff = 1e9
+            best_t = 0
+            s_cdf = lut_s[s_val]
+            for t_val in range(256):
+                t_cdf = lut_t[t_val]
+                diff = s_cdf - t_cdf
+                if diff < 0: diff = -diff # Manual abs
+                
+                if diff < min_diff:
+                    min_diff = diff
+                    best_t = t_val
+            mapping[s_val] = best_t
             
         # Step D: Terapkan Mapping
-        hasil = np.zeros_like(source_img)
+        hasil = np.zeros(source_img.shape, dtype=np.uint8)
         for i in range(h):
             for j in range(w):
-                hasil[i, j] = mapping[source_img[i, j]]
+                hasil[i, j] = mapping[int(source_img[i, j])]
                 
         return hasil
 
@@ -200,14 +262,19 @@ class HistogramProcessor:
         
         # 2. Gabungkan menggunakan mask
         h, w = img.shape[:2]
-        hasil = np.zeros_like(img)
+        hasil = np.zeros(img.shape, dtype=np.uint8)
         
-        # Normalisasi mask ke boolean
-        mask_bool = mask > 127 if np.max(mask) > 1 else mask > 0.5
+        # Normalisasi mask ke boolean (Manual max check)
+        max_mask = 0
+        for row in mask:
+            for val in row:
+                if val > max_mask: max_mask = val
+        
+        threshold = 127 if max_mask > 1 else 0.5
         
         for i in range(h):
             for j in range(w):
-                if mask_bool[i, j]:
+                if mask[i, j] > threshold:
                     hasil[i, j] = matched_full[i, j]
                 else:
                     hasil[i, j] = img[i, j]
@@ -222,69 +289,167 @@ class HistogramProcessor:
     def merge_image(img1, img2, alpha=0.5):
         """
         Menggabungkan dua citra dengan teknik blending (transparansi) manual.
-        Rumus: hasil = (img1 * alpha) + (img2 * (1 - alpha))
-        
-        Args:
-            img1: np.array citra pertama (source A)
-            img2: np.array citra kedua (source B), harus seukuran img1.
-            alpha: float (0.0 - 1.0), bobot transparansi citra pertama. 
-                   1.0 = img1 penuh, 0.0 = img2 penuh.
-        Returns:
-            np.array citra hasil blending (uint8)
         """
         h, w = img1.shape[:2]
-        hasil = np.zeros_like(img1, dtype=np.float64)
+        hasil = np.zeros(img1.shape, dtype=np.uint8)
         is_rgb = len(img1.shape) == 3
         
         for i in range(h):
             for j in range(w):
                 if is_rgb:
                     for c in range(3):
-                        hasil[i, j, c] = (img1[i, j, c] * alpha) + (img2[i, j, c] * (1 - alpha))
+                        val = (img1[i, j, c] * alpha) + (img2[i, j, c] * (1 - alpha))
+                        val = np.round(val)
+                        if val > 255: val = 255
+                        if val < 0: val = 0
+                        hasil[i, j, c] = int(val)
                 else:
-                    hasil[i, j] = (img1[i, j] * alpha) + (img2[i, j] * (1 - alpha))
+                    val = (img1[i, j] * alpha) + (img2[i, j] * (1 - alpha))
+                    val = np.round(val)
+                    if val > 255: val = 255
+                    if val < 0: val = 0
+                    hasil[i, j] = int(val)
                     
-        return np.clip(hasil, 0, 255).astype(np.uint8)
+        return hasil
         # Contoh: res = HistogramProcessor.merge_image(img1, img2, alpha=0.7)
 
     @staticmethod
     def replace_background(foreground, background, threshold=240, mode='bright'):
         """
         Mengganti background pada citra foreground dengan citra background lain.
-        Biasanya digunakan untuk menghapus background putih atau hitam solid.
-        
-        Args:
-            foreground: np.array citra objek utama
-            background: np.array citra latar belakang baru (harus seukuran foreground)
-            threshold: int (0-255), batas nilai piksel untuk dideteksi sebagai background.
-            mode: string, 'bright' untuk ganti background terang (putih), 
-                  'dark' untuk ganti background gelap (hitam).
-        Returns:
-            np.array citra hasil komposisi (uint8)
         """
         h, w = foreground.shape[:2]
-        hasil = np.zeros_like(foreground, dtype=np.uint8)
+        hasil = np.zeros(foreground.shape, dtype=np.uint8)
         is_rgb = len(foreground.shape) == 3
         
         for i in range(h):
             for j in range(w):
-                # Deteksi piksel background (menggunakan rata-rata channel jika RGB)
+                # Manual intensity calculation
                 if is_rgb:
-                    intensity = (int(foreground[i, j, 0]) + int(foreground[i, j, 1]) + int(foreground[i, j, 2])) // 3
+                    # Manual average for intensity
+                    total_p = 0
+                    for c in range(3): total_p += foreground[i, j, c]
+                    intensity = total_p / 3.0
                 else:
                     intensity = foreground[i, j]
                 
-                # Kondisi penggantian
-                is_bg = (mode == 'bright' and intensity >= threshold) or \
-                        (mode == 'dark' and intensity <= threshold)
-                
-                if is_bg:
-                    hasil[i, j] = background[i, j]
+                # Check threshold
+                is_bg = False
+                if mode == 'bright':
+                    if intensity >= threshold: is_bg = True
                 else:
-                    hasil[i, j] = foreground[i, j]
+                    if intensity <= threshold: is_bg = True
+                
+                # Assign pixel
+                if is_bg:
+                    if is_rgb:
+                        for c in range(3): hasil[i, j, c] = background[i, j, c]
+                    else:
+                        hasil[i, j] = background[i, j]
+                else:
+                    if is_rgb:
+                        for c in range(3): hasil[i, j, c] = foreground[i, j, c]
+                    else:
+                        hasil[i, j] = foreground[i, j]
+                        
+        return hasil
+
+    @staticmethod
+    def merge_masked(foreground, background, mask):
+        """
+        Menggabungkan foreground dan background menggunakan mask (0-255).
+        """
+        h, w = foreground.shape[:2]
+        hasil = np.zeros(foreground.shape, dtype=np.uint8)
+        is_rgb = len(foreground.shape) == 3
+        
+        for i in range(h):
+            for j in range(w):
+                # Normalize mask
+                alpha = mask[i, j] / 255.0
+                
+                if is_rgb:
+                    for c in range(3):
+                        val = (foreground[i, j, c] * alpha) + (background[i, j, c] * (1.0 - alpha))
+                        val = np.round(val)
+                        if val > 255: val = 255
+                        if val < 0: val = 0
+                        hasil[i, j, c] = int(val)
+                else:
+                    val = (foreground[i, j] * alpha) + (background[i, j] * (1.0 - alpha))
+                    val = np.round(val)
+                    if val > 255: val = 255
+                    if val < 0: val = 0
+                    hasil[i, j] = int(val)
                     
         return hasil
-        # Contoh: res = HistogramProcessor.replace_background(obj, bg, threshold=250, mode='bright')
+
+    @staticmethod
+    def apply_mask(image, mask):
+        """
+        Menerapkan mask pada citra. Piksel yang tertutup mask (hitam) akan menjadi 0.
+        """
+        h, w = image.shape[:2]
+        hasil = np.zeros(image.shape, dtype=np.uint8)
+        is_rgb = len(image.shape) == 3
+        
+        # Manual max for mask normalization
+        max_m = 0
+        for row in mask:
+            for val in row:
+                if val > max_m: max_m = val
+        
+        threshold = 127 if max_m > 1 else 0.5
+        
+        for i in range(h):
+            for j in range(w):
+                if mask[i, j] > threshold:
+                    if is_rgb:
+                        for c in range(3): hasil[i, j, c] = image[i, j, c]
+                    else:
+                        hasil[i, j] = image[i, j]
+                # else stays 0 from np.zeros
+                        
+        return hasil
+                    # Jika RGB, set semua channel ke 0. Jika Gray, set piksel ke 0.
+                    if is_rgb:
+                        hasil[i, j] = [0, 0, 0]
+                    else:
+                        hasil[i, j] = 0
+                        
+        return hasil
+        # Contoh: masked = HistogramProcessor.apply_mask(img, mask)
+
+    @staticmethod
+    def create_rectangle_mask(h, w, x, y, lebar, tinggi):
+        """
+        Membuat mask persegi panjang secara manual (tanpa CV2).
+        
+        Args:
+            h, w: Tinggi dan lebar citra output
+            x, y: Titik awal (kolom, baris)
+            lebar, tinggi: Ukuran persegi
+        """
+        mask = np.zeros((h, w), dtype=np.uint8)
+        for i in range(y, min(y + tinggi, h)):
+            for j in range(x, min(x + lebar, w)):
+                mask[i, j] = 255
+        return mask
+
+    @staticmethod
+    def create_circle_mask(h, w, cx, cy, radius):
+        """
+        Membuat mask lingkaran secara manual (tanpa CV2).
+        Menggunakan rumus Euclidean Distance: (x-cx)^2 + (y-cy)^2 <= r^2
+        """
+        mask = np.zeros((h, w), dtype=np.uint8)
+        for i in range(h):
+            for j in range(w):
+                # Hitung jarak piksel ke pusat
+                dist_sq = (j - cx)**2 + (i - cy)**2
+                if dist_sq <= radius**2:
+                    mask[i, j] = 255
+        return mask
 
     # -------------------------------------------------------------------------
     # 4. GEOMETRI & DIAGONAL
@@ -296,15 +461,21 @@ class HistogramProcessor:
         Memecah citra menjadi bagian bawah diagonal dan atas diagonal.
         """
         h, w = image.shape[:2]
-        bawah = np.zeros_like(image)
-        atas = np.zeros_like(image)
+        bawah = np.zeros(image.shape, dtype=np.uint8)
+        atas = np.zeros(image.shape, dtype=np.uint8)
 
         for i in range(h):
             for j in range(w):
                 if i >= j:
-                    bawah[i, j] = image[i, j]
+                    if len(image.shape) == 3:
+                        for c in range(3): bawah[i, j, c] = image[i, j, c]
+                    else:
+                        bawah[i, j] = image[i, j]
                 else:
-                    atas[i, j] = image[i, j]
+                    if len(image.shape) == 3:
+                        for c in range(3): atas[i, j, c] = image[i, j, c]
+                    else:
+                        atas[i, j] = image[i, j]
         return bawah, atas
 
     @staticmethod
@@ -313,14 +484,20 @@ class HistogramProcessor:
         Menggabungkan dua citra berdasarkan pembatas diagonal.
         """
         h, w = bawah.shape[:2]
-        hasil = np.zeros_like(bawah, dtype=np.uint8)
+        hasil = np.zeros(bawah.shape, dtype=np.uint8)
 
         for i in range(h):
             for j in range(w):
                 if i > j:
-                    hasil[i, j] = bawah[i, j] 
+                    if len(bawah.shape) == 3:
+                        for c in range(3): hasil[i, j, c] = bawah[i, j, c]
+                    else:
+                        hasil[i, j] = bawah[i, j] 
                 else:
-                    hasil[i, j] = atas[i, j]   
+                    if len(atas.shape) == 3:
+                        for c in range(3): hasil[i, j, c] = atas[i, j, c]
+                    else:
+                        hasil[i, j] = atas[i, j]   
         return hasil
 
     @staticmethod
@@ -351,10 +528,9 @@ class HistogramProcessor:
     def contrast_stretching(img, r_min, r_max):
         """
         Linear Contrast Stretching.
-        Menarik rentang [r_min, r_max] menjadi [0, 255].
         """
         h, w = img.shape[:2]
-        hasil = np.zeros_like(img, dtype=np.uint8)
+        hasil = np.zeros(img.shape, dtype=np.uint8)
         
         for i in range(h):
             for j in range(w):
@@ -364,23 +540,26 @@ class HistogramProcessor:
                 elif val >= r_max:
                     hasil[i, j] = 255
                 else:
-                    # Rumus: (val - r_min) * (255 / (r_max - r_min))
-                    hasil[i, j] = np.round((val - r_min) * (255 / (r_max - r_min)))
+                    hasil[i, j] = int(np.round((val - r_min) * (255 / (r_max - r_min))))
         return hasil
 
     @staticmethod
     def otsu_threshold(img):
         """
         Otsu's Thresholding Manual.
-        Mencari threshold optimal dengan memaksimalkan between-class variance.
         """
         hist = HistogramProcessor.calculate_histogram(img)
-        total_pixels = img.size
+        h, w = img.shape[:2]
+        total_pixels = h * w
         
         current_max = -1
         threshold = 0
         
-        sum_total = np.sum(np.arange(256) * hist)
+        # Manual total sum for intensity
+        sum_total = 0
+        for i in range(256):
+            sum_total += i * hist[i]
+            
         weight_bg = 0
         sum_bg = 0
         
@@ -396,15 +575,15 @@ class HistogramProcessor:
             mean_fg = (sum_total - sum_bg) / weight_fg
             
             # Between-class variance
-            var_between = weight_bg * weight_fg * (mean_bg - mean_fg)**2
+            diff_mean = mean_bg - mean_fg
+            var_between = weight_bg * weight_fg * (diff_mean * diff_mean)
             
             if var_between > current_max:
                 current_max = var_between
                 threshold = i
                 
         # Terapkan threshold
-        h, w = img.shape[:2]
-        hasil = np.zeros_like(img, dtype=np.uint8)
+        hasil = np.zeros(img.shape, dtype=np.uint8)
         for i in range(h):
             for j in range(w):
                 hasil[i, j] = 255 if img[i, j] > threshold else 0
@@ -415,32 +594,64 @@ class HistogramProcessor:
     def local_enhancement(img, E=4.0, k0=0.4, k1=0.02, k2=0.4, window_size=3):
         """
         Local Histogram Statistics Enhancement.
-        Mencerahkan area yang gelap (mean rendah) dan memiliki variansi rendah.
         """
         h, w = img.shape[:2]
-        hasil = np.copy(img).astype(float)
+        hasil = np.zeros(img.shape, dtype=np.uint8)
         
-        # Statistik Global
-        m_global = np.mean(img)
-        sigma_global = np.std(img)
+        # 1. Statistik Global (Manual)
+        sum_g = 0
+        sum_sq_g = 0
+        total_p = h * w
+        for i in range(h):
+            for j in range(w):
+                v = float(img[i, j])
+                sum_g += v
+                sum_sq_g += v * v
+        
+        m_global = sum_g / total_p
+        # Variance = E[X^2] - E[X]^2
+        var_global = (sum_sq_g / total_p) - (m_global * m_global)
+        sigma_global = var_global**0.5 # Square root
         
         pad = window_size // 2
-        img_pad = np.pad(img, pad, mode='reflect')
         
         for i in range(h):
             for j in range(w):
-                # Ambil window lokal
-                window = img_pad[i:i+window_size, j:j+window_size]
-                m_local = np.mean(window)
-                sigma_local = np.std(window)
+                # 2. Ambil window lokal (Manual with boundary check)
+                sum_l = 0
+                sum_sq_l = 0
+                count_l = 0
+                for r in range(i - pad, i + pad + 1):
+                    for c in range(j - pad, j + pad + 1):
+                        # Reflect boundary or clamp
+                        rr = r
+                        if rr < 0: rr = -r
+                        if rr >= h: rr = 2*h - r - 1
+                        cc = c
+                        if cc < 0: cc = -c
+                        if cc >= w: cc = 2*w - c - 1
+                        
+                        v = float(img[rr, cc])
+                        sum_l += v
+                        sum_sq_l += v * v
+                        count_l += 1
                 
-                # Syarat penguatan:
-                # 1. Mean lokal <= k0 * Mean Global (Area Gelap)
-                # 2. k1 * Std Global <= Std Lokal <= k2 * Std Global (Kontras Rendah tapi ada detail)
+                m_local = sum_l / count_l
+                var_local = (sum_sq_l / count_l) - (m_local * m_local)
+                if var_local < 0: var_local = 0
+                sigma_local = var_local**0.5
+                
+                # Syarat penguatan
+                val = float(img[i, j])
                 if m_local <= k0 * m_global and (k1 * sigma_global <= sigma_local <= k2 * sigma_global):
-                    hasil[i, j] = img[i, j] * E
+                    val = val * E
+                
+                # Manual clip
+                if val > 255: val = 255
+                if val < 0: val = 0
+                hasil[i, j] = int(np.round(val))
                     
-        return np.clip(hasil, 0, 255).astype(np.uint8)
+        return hasil
 
     # -------------------------------------------------------------------------
     # 6. METRICS & VISUALISASI
@@ -451,11 +662,28 @@ class HistogramProcessor:
         """
         Menghitung MSE dan PSNR untuk membandingkan kualitas citra.
         """
-        mse = np.mean((original.astype(float) - processed.astype(float))**2)
+        h, w = original.shape[:2]
+        total_err = 0
+        for i in range(h):
+            for j in range(w):
+                if len(original.shape) == 3:
+                    for c in range(3):
+                        diff = float(original[i, j, c]) - float(processed[i, j, c])
+                        total_err += diff * diff
+                else:
+                    diff = float(original[i, j]) - float(processed[i, j])
+                    total_err += diff * diff
+        
+        # Mean squared error
+        count = h * w * (3 if len(original.shape) == 3 else 1)
+        mse = total_err / count
+        
         if mse == 0:
             return 0, 100 # Identik
         
-        psnr = 10 * np.log10((255**2) / mse)
+        # PSNR using manual log approximation or math.log10
+        import math
+        psnr = 10 * math.log10((255*255) / mse)
         return mse, psnr
 
     @staticmethod
@@ -488,14 +716,25 @@ class HistogramProcessor:
 #  CONTOH PENGGUNAAN (MAIN BLOCK)
 # =============================================================================
 if __name__ == "__main__":
-    # Buat citra dummy untuk testing
-    dummy_source = np.random.randint(0, 100, (100, 100), dtype=np.uint8)
-    dummy_target = np.random.randint(150, 255, (100, 100), dtype=np.uint8)
+    # Buat citra dummy manual (Hanya np.zeros)
+    dummy_source = np.zeros((100, 100), dtype=np.uint8)
+    for i in range(100):
+        for j in range(100):
+            dummy_source[i, j] = (i + j) % 256
+            
+    dummy_target = np.zeros((100, 100), dtype=np.uint8)
+    for i in range(100):
+        for j in range(100):
+            dummy_target[i, j] = (i * j) % 256
     
     # 1. Instance usage
     proc = HistogramProcessor(dummy_source)
     hist = proc.calculate_histogram(proc.image)
-    print(f"Histogram sum: {np.sum(hist)} (Expected: {dummy_source.size})")
+    
+    # Manual sum for print
+    s = 0
+    for v in hist: s += v
+    print(f"Histogram sum: {s} (Expected: {100*100})")
     
     # 2. Equalization
     equalized = HistogramProcessor.equalize(dummy_source)
@@ -505,10 +744,12 @@ if __name__ == "__main__":
     
     # 4. Selective
     mask = np.zeros((100, 100), dtype=np.uint8)
-    mask[25:75, 25:75] = 1 # Area kotak di tengah
+    for i in range(25, 75):
+        for j in range(25, 75):
+            mask[i, j] = 255
     selective = HistogramProcessor.selective_specification(dummy_source, dummy_target, mask)
     
-    print("Operasi berhasil dijalankan!")
+    print("Operasi berhasil dijalankan dengan batasan strict NumPy!")
 
     [ignoring loop detection]
 # ... (bagian awal file tetap sama)

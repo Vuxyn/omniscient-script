@@ -1668,7 +1668,7 @@ class Specialization:
             for src_val in range(256):
                 diff = np.abs(ref_cdf - src_cdf[src_val])
                 lut[src_val] = np.argmin(diff)
-            if verbose:
+            if verbose:ArrayLike
                 print(f"  [{channel_name}] Step 3: Built LUT (sample: 0->{lut[0]}, 128->{lut[128]}, 255->{lut[255]})")
             matched = lut[src.astype(np.uint8)]
             if verbose:
